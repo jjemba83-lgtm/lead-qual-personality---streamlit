@@ -437,6 +437,7 @@ Return ONLY valid JSON in this exact format:
     except Exception as e:
         print(f"Error in conversation assessment: {e}")
         # Default to continue if assessment fails
+        return False, None
 
 
 def run_single_conversation(
