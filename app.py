@@ -2,8 +2,6 @@
 Streamlit app for human testing of gym lead qualification chatbot.
 Allows humans to chat with the sales bot and download conversation logs.
 """
-from dotenv import load_dotenv
-load_dotenv()  # Load .env file
 
 import streamlit as st
 import json
@@ -320,6 +318,46 @@ def main():
     st.title("🥊 Gym Sales Bot Tester")
     st.markdown("Chat with the sales bot to test lead qualification before production deployment.")
     
+    # Instructions and Expectations
+    with st.expander("📋 How This Works & What to Expect", expanded=not st.session_state.conversation_started):
+        st.markdown("""
+        ### 🎯 Your Role
+        You're pretending to be a potential gym member who filled out a web form. Chat naturally with the sales bot as if you're genuinely interested (or not!) in joining.
+        
+        ### 🤖 What The Bot Does
+        - Asks questions to understand your fitness goals
+        - Tries to qualify you as a lead
+        - Attempts to book you for a free class
+        
+        ### ⏱️ When The Conversation Ends
+        The conversation will **automatically end** when:
+        - ✅ **You agree to book a free class** (e.g., "Yes, I'd like to try it")
+        - ❌ **You clearly decline** (e.g., "No thanks, not interested")
+        - 🕐 **10 message exchanges** are reached (limit to keep it realistic)
+        
+        **Don't be surprised when it ends abruptly** - this mimics real lead qualification where the bot detects agreement/rejection and moves to next steps!
+        
+        ### 📊 After The Conversation
+        You'll see:
+        - **Detected Intent** - What fitness goal the bot thinks you have
+        - **Confidence Level** - How sure the bot is
+        - **Reasoning** - Why it detected that intent
+        - **Outcome** - Whether you agreed to book, declined, or hit the limit
+        
+        ### 💡 Testing Tips
+        - **Be natural** - Chat like you normally would
+        - **Try different personas** - Enthusiastic, skeptical, price-conscious, etc.
+        - **Don't overthink it** - The bot should handle various communication styles
+        - **Test objections** - Mention concerns about price, time, intimidation, etc.
+        
+        ### 🎭 Example Personas to Try
+        1. **Hot Lead**: "I really need to lose 15 pounds before summer!"
+        2. **Price Shopper**: "How much does membership cost? I'm on a budget..."
+        3. **Just Browsing**: "I'm just checking out my options, not ready to commit"
+        4. **Stressed Professional**: "Work is killing me, I need to blow off steam"
+        5. **Intimidated Beginner**: "I've never boxed before, will I be out of place?"
+        """)
+    
     # API Key input in sidebar
     with st.sidebar:
         st.header("⚙️ Settings")
@@ -350,6 +388,16 @@ def main():
                 st.rerun()
     
     else:
+        # Testing context reminder
+        if not st.session_state.conversation_ended:
+            st.info("💬 **Testing Mode**: Chat naturally as if you're a real prospect. The conversation will end automatically when the bot detects agreement, rejection, or after 10 exchanges.")
+        
+        # Progress indicator
+        if not st.session_state.conversation_ended:
+            num_exchanges = len([m for m in st.session_state.messages if m["role"] == "user"])
+            progress = num_exchanges / st.session_state.config.max_message_exchanges
+            st.progress(progress, text=f"Exchange {num_exchanges}/{st.session_state.config.max_message_exchanges}")
+        
         # Chat display
         st.markdown("### 💬 Chat")
         
@@ -365,7 +413,15 @@ def main():
                 send_message(user_input)
                 st.rerun()
         else:
-            st.info("🎯 Conversation ended. View the results below.")
+            # Show why conversation ended
+            if st.session_state.conversation_outcome == ConversationOutcome.AGREED_FREE_CLASS:
+                st.success("✅ **Conversation Complete!** The bot detected you agreed to book a free class.")
+            elif st.session_state.conversation_outcome == ConversationOutcome.NOT_INTERESTED:
+                st.info("❌ **Conversation Complete!** The bot detected you're not interested.")
+            elif st.session_state.conversation_outcome == ConversationOutcome.REACHED_MESSAGE_LIMIT:
+                st.warning("🕐 **Conversation Complete!** Reached the 10-message exchange limit.")
+            
+            st.markdown("👇 **Scroll down to see the intent detection results and download options.**")
         
         # Intent Detection Results
         if st.session_state.conversation_ended and st.session_state.intent_detection:
@@ -398,6 +454,43 @@ def main():
                 outcome_text = st.session_state.conversation_outcome.value.replace('_', ' ').title()
                 outcome_emoji = "✅" if st.session_state.conversation_outcome == ConversationOutcome.AGREED_FREE_CLASS else "❌"
                 st.markdown(f"**Outcome:** {outcome_emoji} {outcome_text}")
+            
+            # Feedback section
+            st.markdown("---")
+            st.markdown("### 💭 Quick Feedback (Optional)")
+            st.markdown("*This helps improve the bot - your input won't be saved automatically*")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                actual_intent = st.selectbox(
+                    "What was YOUR actual intent?",
+                    [""] + [intent.value.replace('_', ' ').title() for intent in Intent],
+                    help="Select what you were really trying to communicate"
+                )
+                
+                if actual_intent:
+                    detected = st.session_state.intent_detection.detected_intent.value.replace('_', ' ').title()
+                    if actual_intent == detected:
+                        st.success("✅ Bot detected your intent correctly!")
+                    else:
+                        st.error(f"❌ Mismatch: Bot detected '{detected}' but you meant '{actual_intent}'")
+            
+            with col2:
+                conversation_rating = st.select_slider(
+                    "How natural did the conversation feel?",
+                    options=["Very Robotic", "Somewhat Robotic", "Neutral", "Somewhat Natural", "Very Natural"],
+                    value="Neutral",
+                    help="Rate the conversation quality"
+                )
+            
+            feedback_notes = st.text_area(
+                "Additional notes (optional)",
+                placeholder="Any confusion, awkward moments, or things that worked well?",
+                height=100
+            )
+            
+            if feedback_notes or actual_intent:
+                st.info("💡 **Tip**: Download the conversation JSON below and add this feedback to your testing spreadsheet!")
         
         # Download options
         if st.session_state.conversation_ended:
