@@ -240,13 +240,7 @@ Examples:
 - If they mention multiple goals, pick the one they show MOST interest in through their 
   questions and follow-ups, not just what they said first
 
-CRITICAL INSTRUCTIONS FOR INTENT DETECTION:
-⚠️ NEVER include the INTENT_DETECTION JSON in your regular chat messages to the prospect!
-⚠️ The INTENT_DETECTION should ONLY be provided when you are explicitly asked: "provide your INTENT_DETECTION assessment"
-⚠️ During normal conversation, respond naturally without ANY JSON formatting
-⚠️ Keep your responses conversational and friendly - save the structured data for when specifically requested
-
-When explicitly asked for intent detection, provide assessment in EXACT format:
+CRITICAL: At conversation end, provide assessment in EXACT format:
 
 INTENT_DETECTION:
 {
@@ -347,26 +341,13 @@ PROSPECT'S LATEST RESPONSE:
 Determine if the prospect has shown INTEREST IN ATTENDING the free class:
 
 SIGNS OF AGREEMENT/INTEREST (mark as "agreed_to_free_class"):
-- Explicit agreement ("yes", "sure", "sounds good", "I'd like to", "let's do it", "I'm in", "sign me up")
-- Discussing specific times or days ("weekend works", "Tuesday evening", "mornings are best", "I can do 6pm")
-- Asking about scheduling ("what times?", "when do classes start?", "what days are available?", "when's the next class?")
-- Expressing time preferences ("I'd prefer evening", "weekend morning would work", "I'm free Tuesday")
-- Providing availability information ("I'm available weekdays", "mornings work for me")
-- Asking logistical questions about attending ("where's it located?", "what should I bring?", "should I wear anything specific?", "do I need to arrive early?")
-- Responding positively to booking offers ("that works", "sounds perfect", "let's try it")
-- Any indication they're planning to attend or moving toward booking
-- Discussing with sales rep about scheduling ("let me check my calendar", "what works for you?")
-
-🚨 CRITICAL RULE: If the prospect is discussing WHEN, WHERE, or HOW to attend → they have AGREED!
-Don't wait for magic words like "yes, book me now". In real sales, talking logistics = commitment.
-
-EXAMPLES THAT ARE AGREEMENT:
-✅ "Tuesday works for me" → AGREED (discussing when)
-✅ "I can do mornings" → AGREED (stating availability)
-✅ "What time is the next class?" → AGREED (asking about scheduling)
-✅ "Should I bring anything?" → AGREED (logistics question)
-✅ "Where's it located?" → AGREED (planning to attend)
-✅ "That sounds good" after booking offer → AGREED (positive response)
+- Discussing specific times or days ("weekend works", "Tuesday evening", "mornings are best")
+- Asking about scheduling ("what times?", "when do classes start?", "what days are available?")
+- Expressing time preferences ("I'd prefer evening", "weekend morning would work")
+- Saying positive things about trying it ("sounds good", "I'd like to try", "looking forward to it")
+- Providing availability information
+- Asking logistical questions about attending (location, what to bring, etc.)
+- Any indication they plan to attend
 
 SIGNS OF DECLINE (mark as "not_interested"):
 - Explicit rejection ("no thanks", "not interested", "I'll pass", "not for me")
@@ -374,14 +355,11 @@ SIGNS OF DECLINE (mark as "not_interested"):
 - Strong hesitation with no forward movement
 
 OTHERWISE (mark as "continue"):
-- Still asking questions about the gym/classes (not booking-related)
+- Still asking questions about the gym/classes
 - Hasn't engaged with booking yet
 - Needs more information before deciding
-- General conversation without commitment signals
 
-⚠️ IMPORTANT: Don't be too conservative! In real sales, discussing scheduling = commitment.
-If they're talking about WHEN/WHERE/HOW to attend, mark as "agreed_to_free_class" immediately.
-Don't require explicit "yes, I want to book" - that's unrealistic!
+IMPORTANT: In sales, discussing scheduling = interest in attending. Don't require explicit "yes, book me" - that's unrealistic. If they're talking about times/days, they're interested!
 
 CRITICAL: Set "should_end" based on outcome:
 - If outcome is "agreed_to_free_class" → should_end = TRUE
