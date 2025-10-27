@@ -10,14 +10,10 @@ from typing import List, Dict, Optional
 import os
 from openai import OpenAI
 
-from models import (
-    ConversationMessage, IntentDetection, ConversationLog, 
-    ConversationOutcome, Intent, SimulationConfig
-)
-from simulator import (
-    create_sales_prompt, extract_intent_detection, call_llm,
-    assess_conversation_status, initialize_client
-)
+from models import ConversationOutcome, SimulationConfig, Intent, OutcomeChoices, IntentDetection, salesResponse
+
+from simulator import create_sales_prompt, call_llm,assess_conversation_status, initialize_client
+
 
 
 # Page configuration
@@ -88,9 +84,9 @@ def initialize_session_state():
         st.session_state.total_tokens = 0
     if 'config' not in st.session_state:
         st.session_state.config = SimulationConfig(
-            sales_model="gpt-4o-mini",
-            sales_temperature=0.3,
-            sales_max_tokens=120,
+            sales_model="anthropic/claude-3.5-haiku",
+            sales_temperature=0.6,
+            sales_max_tokens=250,
             max_message_exchanges=10
         )
 
@@ -142,25 +138,26 @@ def send_message(user_input: str):
     if should_end and outcome:
         st.session_state.conversation_ended = True
         st.session_state.conversation_outcome = outcome
-        detect_intent()
+        # detect_intent()   #remove
         return
     
     # Check message limit
     num_exchanges = len([m for m in st.session_state.messages if m["role"] == "user"])
     if num_exchanges >= st.session_state.config.max_message_exchanges:
         st.session_state.conversation_ended = True
-        st.session_state.conversation_outcome = ConversationOutcome.REACHED_MESSAGE_LIMIT
-        detect_intent()
+        st.session_state.conversation_outcome = "REACHED_MESSAGE_LIMIT"  #update this.
+        # detect_intent()   #remove
         return
     
     # Get sales bot response
     try:
-        sales_response, tokens = call_llm(
+        sales_response, intent, tokens = call_llm(
             st.session_state.sales_history,
             st.session_state.config,
             "sales"
         )
         st.session_state.total_tokens += tokens
+        st.session_state.intent_detection = intent
         
         st.session_state.messages.append({
             "role": "sales",
@@ -173,26 +170,26 @@ def send_message(user_input: str):
         st.error(f"Error getting response: {str(e)}")
 
 
-def detect_intent():
-    """Get intent detection from sales bot."""
-    try:
-        intent_request = st.session_state.sales_history + [{
-            "role": "user",
-            "content": "Based on our conversation, please provide your INTENT_DETECTION assessment in the required JSON format."
-        }]
+# def detect_intent():
+#     """Get intent detection from sales bot."""
+#     try:
+#         intent_request = st.session_state.sales_history + [{
+#             "role": "user",
+#             "content": "Based on our conversation, please provide your INTENT_DETECTION assessment in the required JSON format."
+#         }]
         
-        intent_response, tokens = call_llm(
-            intent_request,
-            st.session_state.config,
-            "sales"
-        )
-        st.session_state.total_tokens += tokens
+#         intent_response, tokens = call_llm(
+#             intent_request,
+#             st.session_state.config,
+#             "sales"
+#         )
+#         st.session_state.total_tokens += tokens
         
-        intent_detection = extract_intent_detection(intent_response)
-        st.session_state.intent_detection = intent_detection
+#         intent_detection = extract_intent_detection(intent_response)
+#         st.session_state.intent_detection = intent_detection
         
-    except Exception as e:
-        st.error(f"Error detecting intent: {str(e)}")
+#     except Exception as e:
+#         st.error(f"Error detecting intent: {str(e)}")
 
 
 def create_download_json() -> str:
@@ -202,7 +199,7 @@ def create_download_json() -> str:
         "timestamp": datetime.now().isoformat(),
         "messages": st.session_state.messages,
         "intent_detection": st.session_state.intent_detection.model_dump() if st.session_state.intent_detection else None,
-        "outcome": st.session_state.conversation_outcome.value if st.session_state.conversation_outcome else None,
+        "outcome": st.session_state.conversation_outcome if st.session_state.conversation_outcome else None,
         "total_tokens_used": st.session_state.total_tokens,
         "conversation_length": len([m for m in st.session_state.messages if m["role"] == "sales"])
     }
@@ -291,7 +288,7 @@ def create_download_pdf() -> bytes:
         if st.session_state.conversation_outcome:
             story.append(Spacer(1, 0.2*inch))
             outcome_style = ParagraphStyle('Outcome', parent=styles['Normal'], fontSize=11)
-            outcome_text = st.session_state.conversation_outcome.value.replace('_', ' ').title()
+            outcome_text = st.session_state.conversation_outcome.replace('_', ' ').title()
             story.append(Paragraph(f"<b>Outcome:</b> {outcome_text}", outcome_style))
         
         doc.build(story)
@@ -361,8 +358,15 @@ def main():
     # API Key input in sidebar
     with st.sidebar:
         st.header("⚙️ Settings")
-        api_key = st.text_input("OpenAI API Key", type="password", value=os.getenv("OPENAI_API_KEY", ""))
         
+        if 'api_key' not in st.session_state:
+            st.session_state.api_key = os.getenv("OPENAI_API_KEY", "")
+
+        api_key = st.text_input("OpenAI API Key", type="password", value=st.session_state.api_key, key="api_key_input")
+        
+        if api_key != st.session_state.api_key:
+            st.session_state.api_key = api_key
+
         if api_key:
             initialize_client(api_key)
             st.success("✅ API Key configured")
@@ -414,11 +418,11 @@ def main():
                 st.rerun()
         else:
             # Show why conversation ended
-            if st.session_state.conversation_outcome == ConversationOutcome.AGREED_FREE_CLASS:
+            if st.session_state.conversation_outcome == "agreed_to_free_class":
                 st.success("✅ **Conversation Complete!** The bot detected you agreed to book a free class.")
-            elif st.session_state.conversation_outcome == ConversationOutcome.NOT_INTERESTED:
+            elif st.session_state.conversation_outcome == "not_interested":
                 st.info("❌ **Conversation Complete!** The bot detected you're not interested.")
-            elif st.session_state.conversation_outcome == ConversationOutcome.REACHED_MESSAGE_LIMIT:
+            elif st.session_state.conversation_outcome == "REACHED_MESSAGE_LIMIT":
                 st.warning("🕐 **Conversation Complete!** Reached the 10-message exchange limit.")
             
             st.markdown("👇 **Scroll down to see the intent detection results and download options.**")
@@ -451,8 +455,8 @@ def main():
             
             # Outcome
             if st.session_state.conversation_outcome:
-                outcome_text = st.session_state.conversation_outcome.value.replace('_', ' ').title()
-                outcome_emoji = "✅" if st.session_state.conversation_outcome == ConversationOutcome.AGREED_FREE_CLASS else "❌"
+                outcome_text = st.session_state.conversation_outcome.replace('_', ' ').title()
+                outcome_emoji = "✅" if st.session_state.conversation_outcome == "agreed_to_free_class" else "❌"
                 st.markdown(f"**Outcome:** {outcome_emoji} {outcome_text}")
             
             # Feedback section
