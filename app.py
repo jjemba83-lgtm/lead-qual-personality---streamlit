@@ -89,6 +89,8 @@ def initialize_session_state():
             sales_max_tokens=250,
             max_message_exchanges=10
         )
+    if 'api_key' not in st.session_state:
+        st.session_state.api_key = ""
 
 
 def start_conversation():
@@ -206,7 +208,7 @@ def create_download_json() -> str:
     return json.dumps(conversation_data, indent=2, default=str)
 
 
-def create_download_pdf() -> bytes:
+def create_download_pdf(your_intent, notes) -> bytes:
     """Create PDF export of conversation."""
     try:
         from reportlab.lib.pagesizes import letter
@@ -290,7 +292,21 @@ def create_download_pdf() -> bytes:
             outcome_style = ParagraphStyle('Outcome', parent=styles['Normal'], fontSize=11)
             outcome_text = st.session_state.conversation_outcome.replace('_', ' ').title()
             story.append(Paragraph(f"<b>Outcome:</b> {outcome_text}", outcome_style))
+
+        # Actual Intent
+        if your_intent:
+            story.append(Spacer(1, 0.2*inch))
+            your_intent_style = ParagraphStyle('Outcome', parent=styles['Normal'], fontSize=11)
+            your_intent_text = your_intent.replace('_', ' ').title()
+            story.append(Paragraph(f"<b>Your actual intent:</b> {your_intent_text}", your_intent_style))
+        # Actual Intent
+        if notes:
+            story.append(Spacer(1, 0.2*inch))
+            notes_style = ParagraphStyle('Outcome', parent=styles['Normal'], fontSize=11)
+            notes_text = notes.replace('_', ' ').title()
+            story.append(Paragraph(f"<b>Your Notes:</b> {notes_text}", notes_style))
         
+
         doc.build(story)
         buffer.seek(0)
         return buffer.getvalue()
@@ -303,7 +319,8 @@ def create_download_pdf() -> bytes:
 def reset_conversation():
     """Reset all session state to start a new conversation."""
     for key in list(st.session_state.keys()):
-        del st.session_state[key]
+        if key != 'api_key':
+            del st.session_state[key]
     initialize_session_state()
 
 
@@ -362,16 +379,21 @@ def main():
         if 'api_key' not in st.session_state:
             st.session_state.api_key = os.getenv("OPENAI_API_KEY", "")
 
-        api_key = st.text_input("OpenAI API Key", type="password", value=st.session_state.api_key, key="api_key_input")
+        api_key = st.text_input(
+            "OpenAI API Key", 
+            type="password", 
+            value=st.session_state.api_key, 
+            key="api_key_input"
+            ).strip()
         
         if api_key != st.session_state.api_key:
             st.session_state.api_key = api_key
 
-        if api_key:
-            initialize_client(api_key)
-            st.success("✅ API Key configured")
-        else:
-            st.warning("⚠️ Please enter your OpenAI API Key")
+            if api_key:
+                initialize_client(api_key)
+                st.success("✅ API Key configured")
+            else:
+                st.warning("⚠️ Please enter your OpenAI API Key")
         
         st.divider()
         st.markdown(f"**Max Exchanges:** {st.session_state.config.max_message_exchanges}")
@@ -515,7 +537,7 @@ def main():
             
             with col2:
                 try:
-                    pdf_data = create_download_pdf()
+                    pdf_data = create_download_pdf(actual_intent, feedback_notes)
                     if pdf_data:
                         st.download_button(
                             label="📑 Download PDF",
